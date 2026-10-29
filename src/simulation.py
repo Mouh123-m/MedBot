@@ -1,3 +1,6 @@
+from collections import deque
+
+
 class Simulation:
     def __init__(self, width=10, height=10):
         self.width = width
@@ -31,3 +34,34 @@ class Simulation:
         if name not in self.locations:
             raise ValueError(f"Unknown location: {name}")
         return self.locations[name]
+
+    def find_path(self, start, goal):
+        if self.is_blocked(start) or self.is_blocked(goal):
+            return []
+        if start == goal:
+            return [start]
+
+        queue = deque([start])
+        came_from = {start: None}
+
+        while queue:
+            current = queue.popleft()
+            if current == goal:
+                break
+            x, y = current
+            for neighbor in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]:
+                if neighbor not in came_from and not self.is_blocked(neighbor):
+                    came_from[neighbor] = current
+                    queue.append(neighbor)
+
+        if goal not in came_from:
+            return []
+
+        path = []
+        cell = goal
+        while cell is not None:
+            path.append(cell)
+            cell = came_from[cell]
+        path.reverse()
+        return path
+    
