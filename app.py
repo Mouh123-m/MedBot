@@ -262,7 +262,7 @@ def render_monitoring_page(manager, robot, simulation):
         st.dataframe(table, use_container_width=True, hide_index=True)
     else:
         st.caption("The map has no obstacles.")
-        CARD_CSS = """
+CARD_CSS = """
 <style>
 div[data-testid="stMetric"] {
     background-color: #FFFFFF;
