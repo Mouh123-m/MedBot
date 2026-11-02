@@ -1,9 +1,11 @@
 import time
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from src.medical_robot import MedicalRobot
+from src.mission import VALID_PRIORITIES
 from src.mission_manager import MissionManager
 from src.simulation import Simulation
 
@@ -156,6 +158,41 @@ def render_simulation_page(manager, robot, simulation):
             st.write(f"**Mission:** #{mission.mission_id} {mission.start} -> {mission.destination}")
 
 
+def render_mission_page(manager, simulation):
+    form_col, table_col = st.columns([1, 2])
+
+    with form_col:
+        st.subheader("Create New Mission")
+        locations = list(simulation.locations.keys())
+        with st.form("create_mission_form", clear_on_submit=False):
+            start = st.selectbox("Starting Location", locations, index=0)
+            destination = st.selectbox("Destination", locations, index=1)
+            priority = st.selectbox("Priority", list(VALID_PRIORITIES), index=1)
+            submitted = st.form_submit_button("Create Mission", use_container_width=True)
+
+        if submitted:
+            try:
+                mission = manager.create_mission(start, destination, priority)
+                st.success(f"Mission #{mission.mission_id} created: {start} -> {destination}")
+            except ValueError as error:
+                st.error(str(error))
+
+    with table_col:
+        st.subheader("Current Missions")
+        records = manager.get_history()
+        if not records:
+            st.info("No missions yet. Create the first one.")
+        else:
+            table = pd.DataFrame(records)[
+                ["mission_id", "start", "destination", "priority", "status"]
+            ]
+            st.dataframe(table, use_container_width=True, hide_index=True)
+
+        pending = [m for m in manager.missions if m.status == "pending"]
+        if pending:
+            st.caption("To run a pending mission, open the Robot Simulation page and press Start.")
+
+
 init_state()
 
 manager = st.session_state.manager
@@ -186,5 +223,7 @@ elif page == "Robot Simulation":
         if manager.current_mission is None:
             st.session_state.running = False
         st.rerun()
+elif page == "Mission Management":
+    render_mission_page(manager, simulation)
 else:
     st.info("This page will be built in the next steps.")
