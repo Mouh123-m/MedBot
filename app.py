@@ -191,6 +191,39 @@ def render_mission_page(manager, simulation):
         pending = [m for m in manager.missions if m.status == "pending"]
         if pending:
             st.caption("To run a pending mission, open the Robot Simulation page and press Start.")
+            
+def render_history_page(manager):
+    records = manager.get_history()
+    if not records:
+        st.info("No missions yet.")
+        return
+
+    table = pd.DataFrame(records)
+    table = table.rename(
+        columns={
+            "mission_id": "ID",
+            "created_at": "Date",
+            "start": "From",
+            "destination": "To",
+            "priority": "Priority",
+            "status": "Result",
+            "failure_reason": "Failure reason",
+        }
+    )
+
+    statuses = sorted(table["Result"].unique())
+    selected = st.multiselect("Filter by result", statuses, default=statuses)
+    filtered = table[table["Result"].isin(selected)]
+
+    st.dataframe(
+        filtered[["ID", "Date", "From", "To", "Priority", "Result", "Failure reason"]],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.subheader("Missions by result")
+    counts = table["Result"].value_counts()
+    st.bar_chart(counts)
 
 
 init_state()
@@ -225,5 +258,7 @@ elif page == "Robot Simulation":
         st.rerun()
 elif page == "Mission Management":
     render_mission_page(manager, simulation)
+elif page == "Mission History":
+    render_history_page(manager)
 else:
     st.info("This page will be built in the next steps.")
