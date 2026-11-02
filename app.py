@@ -224,6 +224,97 @@ def render_history_page(manager):
     st.subheader("Missions by result")
     counts = table["Result"].value_counts()
     st.bar_chart(counts)
+def nearest_location_name(simulation, position):
+    def distance(item):
+          cell = item[1]
+          return abs(cell[0] - position[0]) + abs(cell[1] - position[1])
+
+    name, _ = min(simulation.locations.items(), key=distance)
+    return name
+
+
+def render_monitoring_page(manager, robot, simulation):
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Availability", "Available" if robot.is_available() else "Busy")
+    col2.metric("Status", robot.status)
+    col3.metric("Position", f"{robot.position}")
+    col4.metric("Nearest department", nearest_location_name(simulation, robot.position))
+
+    st.subheader("Current mission")
+    mission = manager.current_mission
+    if mission is None:
+        st.info("The robot has no active mission.")
+    else:
+        st.write(f"**#{mission.mission_id}** {mission.start} -> {mission.destination} ({mission.priority})")
+        st.write(f"Steps remaining: {len(robot.path)}")
+
+    st.subheader("Obstacle alerts")
+    if robot.alert:
+        st.warning(robot.alert)
+    else:
+        st.success("No obstacle alert.")
+
+    st.subheader("Obstacles on the map")
+    if simulation.obstacles:
+        table = pd.DataFrame(
+            sorted(simulation.obstacles), columns=["x", "y"]
+        )
+        st.dataframe(table, use_container_width=True, hide_index=True)
+    else:
+        st.caption("The map has no obstacles.")
+        CARD_CSS = """
+<style>
+div[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid #CFE3E5;
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 1px 3px rgba(14, 124, 134, 0.10);
+}
+</style>
+"""
+
+
+def render_dashboard_page(manager, robot, simulation):
+    stats = manager.get_statistics()
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Total Missions", stats["total"])
+    col2.metric("Completed", stats["completed"])
+    col3.metric("Pending", stats["pending"])
+    col4.metric("Failed", stats["failed"])
+    col5.metric("Robot Status", robot.status)
+
+    left, right = st.columns([2, 1])
+
+    with left:
+        st.subheader("Robot position")
+        st.caption(f"Current position: {robot.position}")
+        st.plotly_chart(build_map_figure(simulation, robot), use_container_width=True)
+
+    with right:
+        st.subheader("Missions by result")
+        if stats["total"] == 0:
+            st.info("No missions yet.")
+        else:
+            labels = ["Completed", "Failed", "Pending"]
+            values = [stats["completed"], stats["failed"], stats["pending"]]
+            pie = go.Figure(
+                go.Pie(
+                    labels=labels,
+                    values=values,
+                    hole=0.55,
+                    marker=dict(colors=["#16A34A", "#DC2626", "#F59E0B"]),
+                )
+            )
+            pie.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(pie, use_container_width=True)
+
+        st.subheader("Latest missions")
+        records = manager.get_history()
+        if records:
+            latest = pd.DataFrame(records[-5:][::-1])[["mission_id", "destination", "status"]]
+            st.dataframe(latest, use_container_width=True, hide_index=True)
 
 
 init_state()
@@ -239,15 +330,9 @@ page = st.sidebar.radio(
 )
 
 st.title(page)
-
+st.markdown(CARD_CSS, unsafe_allow_html=True)
 if page == "Dashboard":
-    stats = manager.get_statistics()
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Missions", stats["total"])
-    col2.metric("Completed", stats["completed"])
-    col3.metric("Pending", stats["pending"])
-    col4.metric("Robot Status", robot.status)
-    st.write(f"Current position: {robot.position}")
+    render_dashboard_page(manager, robot, simulation)
 elif page == "Robot Simulation":
     render_simulation_page(manager, robot, simulation)
     if st.session_state.running and manager.current_mission is not None and robot.status == "moving":
@@ -260,5 +345,5 @@ elif page == "Mission Management":
     render_mission_page(manager, simulation)
 elif page == "Mission History":
     render_history_page(manager)
-else:
-    st.info("This page will be built in the next steps.")
+elif page == "Robot Monitoring":
+    render_monitoring_page(manager, robot, simulation)
